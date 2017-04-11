@@ -42,6 +42,7 @@
   "dependencies": {
     "crypto-js": "^3.1.9-1",
     "discord.js": "^11.0.0",
+    "log4js": "^1.1.1",
     "node-opus": "^0.2.6",
     "request": "^2.81.0"
   }
