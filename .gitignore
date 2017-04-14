@@ -3,3 +3,4 @@ coverage
 config.js
 *.log
 config/
+test/
