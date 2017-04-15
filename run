@@ -1,0 +1,6 @@
+#!/bin/sh
+
+while [ true ]
+do
+    babel-node ./lib/index.js
+done
