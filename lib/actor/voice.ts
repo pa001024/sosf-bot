@@ -1,33 +1,57 @@
-import request from 'request';
-import ChildProcess from 'child_process';
+import * as request from 'request';
+import * as ChildProcess from 'child_process';
 import { CloudMusic, LrcParser } from '../addon';
+import { App } from '..';
+import * as Discord from 'discord.js';
 
-// Voice
+/** 声音组件 */
 export class VoiceActor {
-	constructor(props) {
-		this.prefix = props.prefix;
-		this.app = props.app;
-		this.voiceconn = null;
-		this.enableTTS = true;
-		this.musicQueue = [];
-		this.session = null;
-		this.vol = props.vol || 0.5;
-		this.enableLyric = true;
-		this.playChannel = null;
-		this.ttsPerson = 0; // 发音人选择, 0为女声，1为男声，3为情感合成-度逍遥，4为情感合成-度丫丫，默认为普通女声
-		this.ttsSpeed = 7; // 速度
-		this.ttsPitch = 5; // 语调
-		this.ttsVol = 5; // 大小
+	prefix: string;
+	app: App;
+	voiceconn: Discord.VoiceConnection;
+	/** 启用TTS */
+	enableTTS = false;
+	/** 音乐队列 */
+	musicQueue: any[] = [];
+	session: Discord.StreamDispatcher;
+	/** 总音量 */
+	vol: number;
+	/** 启用歌词 */
+	enableLyric = true;
+	playChannel: Discord.TextChannel;
+	/** 发音人选择, 0为女声，1为男声，3为情感合成-度逍遥，4为情感合成-度丫丫，默认为普通女声 */
+	ttsPerson = 0;
+	/** 速度 */
+	ttsSpeed = 7;
+	/** 语调 */
+	ttsPitch = 5;
+	/** 大小 */
+	ttsVol = 5;
+	/**
+	 * 创建声音组件
+	 * @param {object} props 参数对象
+	 */
+	constructor(prefix: string, app: App, vol: number = 1) {
+		this.prefix = prefix;
+		this.app = app;
+		this.vol = vol || 0.5; // 总音量
 	}
 
-	// 点歌之类的
-	async addMusic(mid, msg) {
+	/**
+	 * 添加歌曲
+	 * @param {string/number} mid 
+	 * @param {Message} msg 
+	 */
+	async addMusic(mid: string | number | Array<number>, msg: Discord.Message) {
+		let musicIDs: Array<number>;
 		if (typeof mid == "string") {
-			mid = mid.split(",");
-			mid.forEach((v, i) => mid[i] = ~~v);
+			musicIDs = new Array<number>();
+			mid.split(",").forEach(v => +v > 0 && musicIDs.push(+v));
+		} else if (typeof mid == "number") {
+			musicIDs = [mid];
 		}
 		this.app.log.debug(`[MUS] Adding song ${mid}`);
-		let data = await this.getMusicInfo(mid);
+		let data = await this.getMusicInfo(musicIDs);
 		if (data.songs && data.songs.length) {
 			let addedSongs = [];
 			for (let i = 0; i < data.songs.length; i++) {
@@ -38,7 +62,7 @@ export class VoiceActor {
 			}
 			if (addedSongs.length) {
 				msg.reply("已添加: \n\n" + addedSongs.join("\n"))
-					.then(m => m.delete(1e4));
+					.then(m => m instanceof Discord.Message && m.delete(1e4));
 				if (!this.session) this.play(msg);
 			}
 		}
@@ -50,8 +74,12 @@ export class VoiceActor {
 			this.addMusic([info.result.songs[0].id], msg);
 		}
 	}
-
-	async addMusicByPlaylist(id, msg) {
+	/**
+	 * 添加歌单
+	 * @param {number} id
+	 * @param {Message} msg 
+	 */
+	async addMusicByPlaylist(id: number, msg: Discord.Message) {
 		let info = await this.getPlaylistInfo(id);
 		if (info.result && info.result.tracks) {
 			for (let i = 0; i < info.result.tracks.length; i++) {
@@ -62,8 +90,8 @@ export class VoiceActor {
 					title: `💿已添加歌单: ${info.result.name}`,
 					url: `http://music.163.com/playlist?id=${info.result.id}`,
 					color: 0xF92672,
-					description: `${info.result.tracks[0].name} - ${info.result.tracks[0].artists[0].name}`
-					+ (info.result.tracks.length > 1 ? `\n${info.result.tracks[1].name} - ${info.result.tracks[1].artists[0].name}` : ""),
+					description: `${info.result.tracks[0].name} - ${info.result.tracks[0].artists[0].name}` +
+					(info.result.tracks.length > 1 ? `\n${info.result.tracks[1].name} - ${info.result.tracks[1].artists[0].name}` : ""),
 					thumbnail: {
 						url: info.result.coverImgUrl,
 					},
@@ -76,28 +104,30 @@ export class VoiceActor {
 		}
 	}
 
-	displayLyric(chan, muInfo, lrc) {
-		let slide, slides = [],
-			cT = a => `${~~(a / 6e4)}:${~~(a / 1e3 % 60) > 9 ? ~~(a / 1e3 % 60) : "0" + ~~(a / 1e3 % 60)}`, // 时间戳转0:00形式
+	displayLyric(chan: Discord.TextChannel, muInfo: any, lrc: any) {
+		let slide: Discord.Message, slides: Discord.Message[] = [],
+			cT = (a: number) => `${~~(a / 6e4)}:${~~(a / 1e3 % 60) > 9 ? ~~(a / 1e3 % 60) : "0" + ~~(a / 1e3 % 60)}`, // 时间戳转0:00形式
 			tplHead = `💿 \`${muInfo.name} - ${muInfo.artists[0].name}\` `,
 			tplTime = `\`0:00 / ${cT(muInfo.duration)}\`\n\n`,
-			addStopReact = (m) => {
+			addStopReact = (m: Discord.Message) => {
 				m.react('⏹').then(_ => m.react('⏭'));
-				const filter = (reaction, user) => (reaction.emoji.name === '⏹' || reaction.emoji.name === '⏭') && user.id !== this.app.client.user.id;
-				const col = m.createReactionCollector(filter, { time: muInfo.duration });
+				const filter = (reaction: Discord.MessageReaction, user: Discord.User) =>
+					(reaction.emoji.name === '⏹' || reaction.emoji.name === '⏭') && user.id !== this.app.client.user.id;
+				const col = m.createReactionCollector(filter, {
+					time: muInfo.duration
+				});
 				col.on('collect', reaction => {
 					col.stop();
 					if (reaction.emoji.name === '⏭') {
 						this.stop();
 						setTimeout(() => this.playNext(), 1e3);
-					}
-					else
+					} else
 						this.stop();
 				});
 			};
 		if (lrc.uncollected || lrc.nolyric) {
-			chan.send(tplHead + "*无歌词*")
-				.then(m => slides.push(m));
+			chan.send(tplHead + tplTime + "*无歌词*")
+				.then(m => { if (m instanceof Discord.Message) { slides.push(m); addStopReact(m); } });
 			setTimeout(() => {
 				if (this.session) {
 					this.session.on('end', () => {
@@ -120,7 +150,7 @@ export class VoiceActor {
 			tplTime = `\`${cT(time)} / ${cT(muInfo.duration)}\`\n\n`;
 			chan.send(tplHead + tplTime + txts.map(v => `**♪ ${v} ♪**`).join("\n") +
 				(next ? "\n" + next.map(v => `♪ ${v} ♪`).join("\n") : ""))
-				.then(m => { slides.push(m); addStopReact(m); });
+				.then(m => { if (m instanceof Discord.Message) { slides.push(m); addStopReact(m); } });
 		});
 		player.on('update', (time, txts, next) => {
 			if (txts[0] && txts[0].trim() == "") return;
@@ -132,7 +162,7 @@ export class VoiceActor {
 			} else if (time > 2e3) {
 				chan.send(tplHead + tplTime + txts.map(v => `**♪ ${v} ♪**`).join("\n") +
 					(next ? "\n" + next.map(v => `♪ ${v} ♪`).join("\n") : ""))
-					.then(m => { slides.push(m); addStopReact(m); });
+					.then(m => { if (m instanceof Discord.Message) { slides.push(m); addStopReact(m); } });
 			}
 		});
 		setTimeout(() => {
@@ -145,36 +175,37 @@ export class VoiceActor {
 		return player;
 	}
 
-	setVol(volume) {
+	setVol(volume: number) {
 		this.vol = volume;
 		if (this.session) {
 			this.session.setVolume(this.vol);
 		}
 	}
 
-	searchMusicInfo(name) {
+	searchMusicInfo(name: string): Promise<any> {
 		return CloudMusic.search(name);
 	}
 
-	getPlaylistInfo(id) {
+	getPlaylistInfo(id: number): Promise<any> {
 		return CloudMusic.getPlaylistInfo(id);
 	}
 
-	getMusicInfo(mid) {
-		return CloudMusic.getInfo(mid);
+	getMusicInfo(musicIDs: number[]): Promise<any> {
+		return CloudMusic.getInfo(musicIDs);
 	}
 
-	getMusicURL(id) {
+	getMusicURL(id: number): Promise<any> {
 		return CloudMusic.getDownload(id);
 	}
 
-	getLyric(id) {
+	getLyric(id: number): Promise<any> {
 		return CloudMusic.getLyric(id);
 	}
 
-	play(msg) {
-		if (this.playChannel != msg.channel) {
-			this.playChannel = msg.channel;
+	play(msg: Discord.Message) {
+		if (this.playChannel == null || this.playChannel.id != msg.channel.id) {
+			if (msg.channel instanceof Discord.TextChannel)
+				this.playChannel = msg.channel;
 			this.stop();
 			this.leave();
 			msg.member && msg.member.voiceChannel && this.join(msg.member.voiceChannel)
@@ -205,7 +236,7 @@ export class VoiceActor {
 			let lrc = await this.getLyric(this.musicQueue[0].id);
 			lrcPlayer = this.displayLyric(this.playChannel, this.musicQueue[0], lrc);
 			this.app.log.info(`[LRC] Setting offset: ${this.app.client.ping}ms`);
-			lrcPlayer.offset = this.app.client.ping;
+			if (lrcPlayer) lrcPlayer.offset = this.app.client.ping;
 		}
 		let reason = await this.playURL(rst.data.url, () => {
 			lrcPlayer && lrcPlayer.play();
@@ -220,15 +251,15 @@ export class VoiceActor {
 		}
 	}
 
-	playURL(url, callback) {
-		return new Promise((resolve, reject) => {
+	playURL(url: string, callback?: Function) {
+		return new Promise<any>((resolve, reject) => {
 			if (!this.voiceconn) return reject("未连接到语音频道");
 			try {
 				let ffProcess = ChildProcess.spawn("ffmpeg",
 					"-analyzeduration 0 -loglevel 0 -i - -f s16le -ar 48000 -ac 2 -ss 0 pipe:1".split(" "), {
 						stdio: ['pipe', 'pipe', 'ignore']
 					});
-				request(url).pipe(ffProcess.stdin).on('error', e => this.app.log.error(e));
+				request(url).pipe(ffProcess.stdin).on('error', (err: any) => this.app.log.error(err));
 				this.session = this.voiceconn.playConvertedStream(ffProcess.stdout);
 
 				if (this.session) {
@@ -252,7 +283,7 @@ export class VoiceActor {
 		this.session && this.session.end("cmd");
 	}
 
-	join(vc) {
+	join(vc: Discord.VoiceChannel) {
 		return vc.join().then(conn => {
 			this.app.log.debug(`[Voice] Connected to ${conn.channel.name}`);
 			this.voiceconn = conn;
@@ -275,21 +306,18 @@ export class VoiceActor {
 		this.voiceconn && this.voiceconn.disconnect();
 	}
 
-	playTTS(content) {
+	playTTS(content: string) {
 		if (this.session) return;
 		const api_base = `http://tts.baidu.com/text2audio?per=${this.ttsPerson}&idx=1&cuid=baidu_speech_demo&cod=2&lan=zh&ctp=1&pdt=1&spd=${this.ttsSpeed}&vol=${this.ttsVol}&pit=${this.ttsPitch}&tex=`;
 
 		let api = api_base + encodeURI(content);
 		this.playURL(api);
 	}
-	ract(rct) {
-
-	}
-	act(msg) {
+	act(msg: Discord.Message) {
 		if (!this.enableTTS || !this.voiceconn || msg.tts || !msg.guild || msg.guild.id != this.voiceconn.channel.guild.id) return false;
 		if (msg.content.startsWith(this.prefix)) {
 			let txt = msg.content.substr(this.prefix.length);
-			let fultex = `${msg.sender}说: ${txt}`;
+			let fultex = `${msg.author.username}说: ${txt}`;
 			this.app.log.debug(`[TTS] Reading: ${fultex}`);
 			this.playTTS(fultex);
 		}

@@ -1,14 +1,19 @@
-import {
-	EventEmitter
-} from 'events';
+import { EventEmitter } from 'events';
 
 export class LrcParser extends EventEmitter {
-	constructor(lrcs) {
+	lrcs: string[];
+	tags = {};
+	playing = false;
+	offset = 500;
+	lines: Map<number, string[]>;
+	times: number[];
+	startStamp: number;
+	curLine: number;
+	timer: NodeJS.Timer;
+	pauseStamp: number;
+	constructor(lrcs: string[]) {
 		super();
 		this.lrcs = lrcs;
-		this.tags = {};
-		this.playing = false;
-		this.offset = 500;
 
 		// tag parse
 		['ti', 'ar', 'al', 'offset', 'by'].forEach(tag => {
@@ -16,9 +21,8 @@ export class LrcParser extends EventEmitter {
 			this.tags[tag] = tn ? tn[1] : '';
 		});
 
-		this.lines = {
-			0: ["~"]
-		};
+		this.lines = new Map<number, string[]>();
+		this.lines[0] = ["~~~"];
 
 		let timeExp = /\[(\d{2,})\:(\d{2}(?:\.\d{2,3})?)\]/g;
 
@@ -35,7 +39,7 @@ export class LrcParser extends EventEmitter {
 			}
 		}));
 
-		this.times = Object.keys(this.lines).sort((a, b) => a - b);
+		this.times = Object.keys(this.lines).map(v => +v).sort((a, b) => a - b);
 	}
 
 	findLine(time) {
@@ -68,7 +72,7 @@ export class LrcParser extends EventEmitter {
 			this.stop();
 			this.pauseStamp = now;
 		} else {
-			this.play((this.pauseStamp || now) - (this.startStamp || now), true);
+			this.play((this.pauseStamp || now) - (this.startStamp || now));
 			delete this.pauseStamp;
 		}
 	}

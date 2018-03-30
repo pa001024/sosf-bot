@@ -1,10 +1,13 @@
+import * as Discord from 'discord.js';
 export { CommandActor } from './command';
 export { VoiceActor } from './voice';
 export * from './chat';
 
 export class ActorArray {
+	actors: Map<string, Actor>;
+	actorslist: Array<Actor>;
 	constructor() {
-		this.actors = {};
+		this.actors = new Map<string, Actor>();
 		this.actorslist = [];
 	}
 
@@ -20,4 +23,8 @@ export class ActorArray {
 	get(name) {
 		return this.actors[name];
 	}
+}
+
+export interface Actor {
+	act(msg: Discord.Message): boolean;
 }

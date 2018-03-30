@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "target": "ES6",
+        "module": "commonjs",
+        "sourceMap": true,
+        "outDir": "dist",
+        "removeComments": true,
+        "noImplicitAny": false,
+        "allowJs": true
+    },
+    "includes": [
+        "lib/**/*"
+    ]
+}
