@@ -1,7 +1,9 @@
+import * as Discord from 'discord.js';
 import { App } from '..';
+import { IActor } from '.';
 
 // 指令处理
-export class CommandActor {
+export class CommandActor implements IActor {
 	prefix: string;
 	app: App;
 	constructor(prefix: string, app: App) {
@@ -9,12 +11,12 @@ export class CommandActor {
 		this.app = app;
 	}
 
-	act(msg) {
+	reciveMessage(msg: Discord.Message): boolean {
 		if (msg.content.startsWith(this.prefix)) {
 			let txt = msg.content.substr(this.prefix.length);
 			let chead = txt.split(" ")[0];
 			let cbody = txt.substr(chead.length + 1);
-			let cmd = this.app.commands[chead];
+			let cmd = this.app.commands.get(chead);
 			if (cmd) {
 				let ret = cmd.exec(cbody, msg, this.app);
 				if (ret == "Permission Denied") {

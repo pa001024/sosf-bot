@@ -4,7 +4,7 @@ import * as Discord from 'discord.js';
 import * as log4js from 'log4js';
 
 import { IFilter, PreFilter } from "./filter";
-import { Actor, ActorArray, CommandActor, VoiceActor, REChatActor, AIChatActor } from "./actor";
+import { IActor, ActorArray, CommandActor, VoiceActor, REChatActor, AIChatActor } from "./actor";
 import { UserAliaManager, UserPermissionManager } from "./manager";
 
 log4js.configure({
@@ -50,7 +50,7 @@ export class App {
 	log: log4js.Logger;
 	config: any;
 	client: Discord.Client;
-	commands: Map<string, Actor>;
+	commands: Map<string, Command>;
 	actors: ActorArray;
 	filters: Array<IFilter>;
 	alias: UserAliaManager;
@@ -58,7 +58,7 @@ export class App {
 	constructor(props: any) {
 		this.config = props.config;
 		this.client = props.client;
-		this.commands = new Map<string, Actor>();
+		this.commands = new Map<string, Command>();
 		this.actors = new ActorArray();
 		this.log = log4js.getLogger("app");
 		this.filters = [new PreFilter(props.prefix.main, this)];
@@ -85,15 +85,15 @@ export class App {
 	}
 	recive(msg: Discord.Message) {
 		if (this.filters.every(a => a.checkMessage(msg))) {
-			this.actors.array().some(a => this.actors.get(a).act(msg));
+			this.actors.array().some(a => this.actors.get(a).reciveMessage(msg));
 		}
 	}
 	addCommand(cmd: Command) {
-		this.commands[cmd.name] = cmd;
-		cmd.alias && cmd.alias.forEach(v => this.commands[v] = cmd);
+		this.commands.set(cmd.name, cmd)
+		cmd.alias && cmd.alias.forEach(v => this.commands.set(v, cmd));
 	}
 	reloadCommand() {
-		Object.keys(this.commands).forEach(v => delete this.commands[v]);
+		this.commands.clear();
 		fs.readdirSync('./lib/commands/').forEach(file => {
 			let mopath = "./commands/" + file;
 			delete require.cache[require.resolve(mopath)];

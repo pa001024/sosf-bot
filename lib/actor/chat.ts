@@ -1,11 +1,12 @@
 import * as request from 'request';
 import { REChatManager } from '../manager';
 import { App } from '..';
+import { IActor } from '.';
 import * as Discord from 'discord.js';
 
 
 // 聊天处理
-export class REChatActor {
+export class REChatActor implements IActor {
 	prefixs: Array<string>;
 	app: App;
 	rx: REChatManager;
@@ -15,7 +16,7 @@ export class REChatActor {
 		this.rx = new REChatManager(rxFile);
 	}
 
-	act(msg) {
+	reciveMessage(msg: Discord.Message): boolean {
 		let prefix = this.prefixs.find(v => msg.content.startsWith(v));
 		if (prefix || Math.random() <= this.app.config.replyRate) {
 			let Q = msg.content.substr(prefix ? prefix.length : 0).replace(/^[\s\.,，　]+/, '');
@@ -85,9 +86,9 @@ export class AIChatActor {
 	 */
 	filterRepeat(L: QA, msg: Discord.Message) {
 		let atoms = msg.channel.id;
-		if (this.lastAnwser[atoms] == L.Q && this.lastQuestion[msg.author.id] == L.A) return false;
-		this.lastAnwser[atoms] = L.A;
-		this.lastQuestion[msg.author.id] = L.Q;
+		if (this.lastAnwser.get(atoms) == L.Q && this.lastQuestion.get(msg.author.id) == L.A) return false;
+		this.lastAnwser.set(atoms, L.A);
+		this.lastQuestion.set(msg.author.id, L.Q);
 	}
 
 	prefilter(L: QA) {

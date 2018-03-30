@@ -1,18 +1,19 @@
 import * as Discord from 'discord.js';
 export { CommandActor } from './command';
 export { VoiceActor } from './voice';
+import { App } from '..';
 export * from './chat';
 
 export class ActorArray {
-	actors: Map<string, Actor>;
-	actorslist: Array<Actor>;
+	actors: Map<string, IActor>;
+	actorslist: Array<IActor>;
 	constructor() {
-		this.actors = new Map<string, Actor>();
+		this.actors = new Map<string, IActor>();
 		this.actorslist = [];
 	}
 
 	add(name, actor) {
-		this.actors[name] = actor;
+		this.actors.set(name, actor);
 		this.actorslist.push(name);
 	}
 
@@ -20,11 +21,12 @@ export class ActorArray {
 		return this.actorslist;
 	}
 
-	get(name) {
-		return this.actors[name];
+	get(name): any {
+		return this.actors.get(name);
 	}
 }
 
-export interface Actor {
-	act(msg: Discord.Message): boolean;
+export interface IActor {
+	app: App;
+	reciveMessage(msg: Discord.Message): boolean;
 }
