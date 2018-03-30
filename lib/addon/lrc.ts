@@ -22,7 +22,6 @@ export class LrcParser extends EventEmitter {
 		});
 
 		this.lines = new Map<number, string[]>();
-		this.lines[0] = ["~~~"];
 
 		let timeExp = /\[(\d{2,})\:(\d{2}(?:\.\d{2,3})?)\]/g;
 
@@ -40,6 +39,9 @@ export class LrcParser extends EventEmitter {
 		}));
 
 		this.times = Object.keys(this.lines).map(v => +v).sort((a, b) => a - b);
+		if (this.times[0] > 2000 && !this.lines[0]) {
+			this.lines[0] = ["~ MUSIC ~"];
+		}
 	}
 
 	findLine(time) {

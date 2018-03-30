@@ -90,8 +90,7 @@ export class VoiceActor {
 					title: `💿已添加歌单: ${info.result.name}`,
 					url: `http://music.163.com/playlist?id=${info.result.id}`,
 					color: 0xF92672,
-					description: `${info.result.tracks[0].name} - ${info.result.tracks[0].artists[0].name}` +
-					(info.result.tracks.length > 1 ? `\n${info.result.tracks[1].name} - ${info.result.tracks[1].artists[0].name}` : ""),
+					description: info.result.tracks.slice(0, 3).map(trank => `${trank.name} - ${trank.artists[0].name}`).join("\n"),
 					thumbnail: {
 						url: info.result.coverImgUrl,
 					},
@@ -126,7 +125,7 @@ export class VoiceActor {
 				});
 			};
 		if (lrc.uncollected || lrc.nolyric) {
-			chan.send(tplHead + tplTime + "*无歌词*")
+			chan.send(tplHead + tplTime + "**- 无歌词 -**")
 				.then(m => { if (m instanceof Discord.Message) { slides.push(m); addStopReact(m); } });
 			setTimeout(() => {
 				if (this.session) {
@@ -235,7 +234,7 @@ export class VoiceActor {
 		if (this.enableLyric && this.playChannel) {
 			let lrc = await this.getLyric(this.musicQueue[0].id);
 			lrcPlayer = this.displayLyric(this.playChannel, this.musicQueue[0], lrc);
-			this.app.log.info(`[LRC] Setting offset: ${this.app.client.ping}ms`);
+			this.app.log.info(`[LRC] Set offset: ${this.app.client.ping}ms`);
 			if (lrcPlayer) lrcPlayer.offset = this.app.client.ping;
 		}
 		let reason = await this.playURL(rst.data.url, () => {

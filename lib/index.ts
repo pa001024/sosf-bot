@@ -137,3 +137,7 @@ bot.on('disconnect', () => {
 		process.exit(0);
 	}, 3e3);
 })
+
+process.on('uncaughtException', (err) => {
+	app.log.error(err as any);
+});
