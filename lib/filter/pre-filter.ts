@@ -21,7 +21,6 @@ export class PreFilter extends Filter {
 	checkMessage(msg: Discord.Message): boolean {
         if (msg.author.bot) return false;
         this.app.log.info(`${msg.author.tag}: ${msg.content}`);
-		msg.author.username = this.app.alias.getAlia(msg.member || msg.author, msg.guild && msg.guild.id);
 		msg.content = msg.content.trim();
 		return msg.content && msg.content.startsWith(this.prefix);
 	}

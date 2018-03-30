@@ -8,12 +8,12 @@ export class UserAliaManager {
 		this.file = file;
 		this.alias = require(this.file);
 	}
-	setAlia(user: Discord.User | Discord.GuildMember, guildId: Discord.Snowflake, alia: string) {
-		this.alias[`${guildId}|${user.id}`] = alia;
+	setAlia(user: Discord.User | Discord.GuildMember, guild: Discord.Guild, alia: string) {
+		this.alias[`${guild.id}|${user.id}`] = alia;
 		this.save();
 	}
-	getAlia(user: Discord.User | Discord.GuildMember, guildId: Discord.Snowflake, ): string {
-		return this.alias[`${guildId}|${user.id}`] || (user instanceof Discord.GuildMember && (user.displayName || user.user.username));
+	getAlia(user: Discord.User | Discord.GuildMember, guild: Discord.Guild, ): string {
+		return this.alias[`${guild.id}|${user.id}`] || (user instanceof Discord.GuildMember && (user.displayName || user.user.username));
 	}
 	save() {
 		fs.writeFileSync(this.file, JSON.stringify(this.alias), null);

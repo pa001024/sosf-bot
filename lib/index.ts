@@ -69,6 +69,14 @@ export class App {
 		this.actors.add("voice", new VoiceActor(props.prefix.tts, this));
 		this.actors.add("ai", new AIChatActor(props.prefix.chat, this, this.config.chat_api));
 	}
+	/**
+	 * 查询信息的称呼
+	 * @param msg 信息
+	 */
+	whois(msg: Discord.Message): string {
+		return this.alias.getAlia(msg.member || msg.author, msg.guild)
+	}
+
 	online() {
 		if (this.config.activityName && this.config.activityName != "") {
 			this.log.info("[App] Set Activity: " + this.config.activityName);

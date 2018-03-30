@@ -13,18 +13,18 @@
   ],
   "scripts": {
     "bot": "node ./lib/index.js",
-    "prepublish": "gulp prepublish",
     "complie": "gulp"
   },
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^9.6.1",
     "@types/log4js": "^2.3.5",
+    "@types/node": "^9.6.1",
     "@types/request": "^2.47.0",
     "gulp": "^3.9.0",
     "gulp-nodemon": "^2.2.1",
     "gulp-sourcemaps": "^2.6.4",
-    "gulp-typescript": "^4.0.2"
+    "gulp-typescript": "^4.0.2",
+    "typescript": "^2.8.1"
   },
   "repository": "pa001024/sosf-bot",
   "dependencies": {
