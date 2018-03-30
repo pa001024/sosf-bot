@@ -234,8 +234,8 @@ export class VoiceActor {
 		if (this.enableLyric && this.playChannel) {
 			let lrc = await this.getLyric(this.musicQueue[0].id);
 			lrcPlayer = this.displayLyric(this.playChannel, this.musicQueue[0], lrc);
-			this.app.log.info(`[LRC] Set offset: ${this.app.client.ping}ms`);
-			if (lrcPlayer) lrcPlayer.offset = this.app.client.ping;
+			this.app.log.info(`[LRC] Set offset: ${~~this.app.client.ping}ms`);
+			if (lrcPlayer) lrcPlayer.offset = ~~this.app.client.ping;
 		}
 		let reason = await this.playURL(rst.data.url, () => {
 			lrcPlayer && lrcPlayer.play();
@@ -269,7 +269,7 @@ export class VoiceActor {
 					this.session.on("end", reason => {
 						this.session = null;
 						resolve(reason);
-						this.app.log.info(`[VOC] url ${url} session ended`);
+						this.app.log.debug(`[VOC] url ${url} session ended`);
 					}).on("error", e => reject(e));
 				}
 			} catch (e) {
