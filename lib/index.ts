@@ -75,7 +75,7 @@ export class App {
 	filters: IFilter[];
 	alias: UserAliaManager;
 	perm: UserPermissionManager;
-	constructor(config: AppConfig, client: Discord.Client, aliasFile: string, permFile: string, rxFile: string) {
+	constructor(config: AppConfig, client: Discord.Client, permFile: string, aliasFile: string, rxFile: string) {
 		this.config = config;
 		this.client = client;
 		this.commands = new Map();
@@ -120,7 +120,7 @@ export class App {
 	}
 	addCommand(cmd: Command) {
 		this.commands.set(cmd.name, cmd)
-		cmd.alias && cmd.alias.forEach(v => this.commands.set(v, cmd));
+		cmd.alias && cmd.alias.forEach(alia => this.commands.set(alia, cmd));
 	}
 	reloadCommand() {
 		this.commands.clear();

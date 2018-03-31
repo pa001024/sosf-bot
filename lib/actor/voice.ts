@@ -229,6 +229,10 @@ export class VoiceActor implements IActor {
 		return CloudMusic.getLyric(id);
 	}
 
+	/**
+	 * 开始播放
+	 * @param msg 信息
+	 */
 	play(msg: Discord.Message) {
 		if (this.playChannel == null || this.playChannel.id != msg.channel.id) {
 			if (msg.channel instanceof Discord.TextChannel)
