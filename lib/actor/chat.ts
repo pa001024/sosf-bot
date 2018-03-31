@@ -5,22 +5,24 @@ import { IActor } from '.';
 import * as Discord from 'discord.js';
 
 
-// 聊天处理
+/**
+ * 正则表达式
+ */
 export class REChatActor implements IActor {
 	prefixs: Array<string>;
 	app: App;
-	rx: REChatManager;
+	reChatManager: REChatManager;
 	constructor(prefixs: Array<string>, app: App, rxFile: string) {
 		this.prefixs = prefixs;
 		this.app = app;
-		this.rx = new REChatManager(rxFile);
+		this.reChatManager = new REChatManager(rxFile);
 	}
 
 	async reciveMessage(msg: Discord.Message): Promise<boolean> {
 		let prefix = this.prefixs.find(v => msg.content.startsWith(v));
 		if (prefix || Math.random() <= this.app.config.replyRate) {
 			let Q = msg.content.substr(prefix ? prefix.length : 0).replace(/^[\s\.,，　]+/, '');
-			let A = this.rx.getReact(Q);
+			let A = this.reChatManager.getReact(Q);
 			if (A) {
 				this.app.log.debug(`[RE] Match ${Q} => ${A}`);
 				msg.channel.send(A);

@@ -369,11 +369,12 @@ export class VoiceActor implements IActor {
 		let api = api_base + encodeURI(content);
 		this.playURL(api);
 	}
-	
+
 	async reciveMessage(msg: Discord.Message): Promise<boolean> {
 		if (!this.enableTTS || !this.voiceconn || msg.tts || !msg.guild || msg.guild.id != this.voiceconn.channel.guild.id) return false;
 		if (msg.content.startsWith(this.prefix)) {
-			let txt = msg.content.substr(this.prefix.length);
+			const emojiRx = /[\ud83c\udc00-\ud83c\udfff]|[\ud83d\udc00-\ud83d\udfff]|[\u2600-\u27ff]|<:[A-z0-9_]+:\d+>/g;
+			let txt = msg.content.substr(this.prefix.length).replace(emojiRx, "");
 			let fultex = `${this.app.whois(msg)}说: ${txt}`;
 			this.app.log.debug(`[TTS] Reading: ${fultex}`);
 			this.playTTS(fultex);

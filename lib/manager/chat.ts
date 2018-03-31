@@ -3,33 +3,33 @@ import * as fs from 'fs';
 /** 正则表达式自动回复 */
 export class REChatManager {
 	file: string;
-	rx: any;
+	patterns: { [key: string]: string[] };
 	complied: RegExp[];
 	constructor(file: string) {
 		this.file = file;
-		this.rx = require(this.file);
-		this.complied = Object.keys(this.rx).map(v => new RegExp(v, 'i'));
+		this.patterns = require(this.file);
+		this.complied = Object.keys(this.patterns).map(v => new RegExp(v, 'i'));
 	}
 	/**
 	 * 删除回复
-	 * @param qrx 匹配正则
-	 * @param arx 回复表达式
+	 * @param queryRegex 匹配正则
+	 * @param anwser 回复表达式
 	 */
-	delReact(qrx: string, arx: string | string[] = null) {
-		if (arx) {
-			if (typeof this.rx[qrx] != "string") {
-				if (typeof arx != "string") {
-					arx.forEach(x => this.rx[qrx] = this.rx[qrx].filter((v: string) => v != x));
+	delReact(queryRegex: string, anwser?: string | string[]) {
+		if (anwser) {
+			if (typeof this.patterns[queryRegex] != "string") {
+				if (typeof anwser != "string") {
+					anwser.forEach(x => this.patterns[queryRegex] = this.patterns[queryRegex].filter((v: string) => v != x));
 				} else {
-					this.rx[qrx] = this.rx[qrx].filter((v: string) => v != arx);
+					this.patterns[queryRegex] = this.patterns[queryRegex].filter((v: string) => v != anwser);
 				}
-			} else if (this.rx[qrx] == arx) {
-				this.complied = this.complied.filter(v => v.source != qrx);
-				delete this.rx[qrx];
+			} else if (this.patterns[queryRegex] == anwser) {
+				this.complied = this.complied.filter(v => v.source != queryRegex);
+				delete this.patterns[queryRegex];
 			}
 		} else {
-			this.complied = this.complied.filter(v => v.source != qrx);
-			delete this.rx[qrx];
+			this.complied = this.complied.filter(v => v.source != queryRegex);
+			delete this.patterns[queryRegex];
 		}
 		this.save();
 		return this;
@@ -42,7 +42,7 @@ export class REChatManager {
 		let r = this.complied.find(v => !!txt.match(v));
 		if (r) {
 			this.complied = this.complied.filter(v => v.source != r.source);
-			delete this.rx[r.source];
+			delete this.patterns[r.source];
 			this.save();
 			return true;
 		}
@@ -50,12 +50,15 @@ export class REChatManager {
 	}
 	/**
 	 * 设置回复(覆盖)
-	 * @param qrx 匹配正则
-	 * @param arx 回复表达式
+	 * @param queryRegex 匹配正则
+	 * @param anwser 回复表达式
 	 */
-	setReact(qrx: string, arx: string | string[]) {
-		if (!this.rx[qrx]) this.complied.push(new RegExp(qrx, 'i'));
-		this.rx[qrx] = arx;
+	setReact(queryRegex: string, anwser: string | string[]) {
+		if (!this.patterns[queryRegex]) this.complied.push(new RegExp(queryRegex, 'i'));
+		if (typeof anwser == "string")
+			this.patterns[queryRegex] = [anwser];
+		else
+			this.patterns[queryRegex] = anwser;
 		this.save();
 		return this;
 	}
@@ -64,22 +67,19 @@ export class REChatManager {
 	 * @param qrx 匹配正则
 	 * @param arx 回复表达式
 	 */
-	addReact(qrx: string, arx: string | string[]) {
-		if (typeof this.rx[qrx] != "string") {
-			if (typeof arx != "string") {
-				this.rx[qrx] = this.rx[qrx].concat(arx);
+	addReact(queryRegex: string, anwser: string | string[]) {
+		if (this.patterns[queryRegex]) {
+			if (typeof anwser != "string") {
+				this.patterns[queryRegex] = this.patterns[queryRegex].concat(anwser);
 			} else {
-				this.rx[qrx].push(arx);
-			}
-		} else if (typeof this.rx[qrx] == "string") {
-			if (typeof arx != "string") {
-				this.rx[qrx] = [this.rx[qrx]].concat(arx);
-			} else {
-				this.rx[qrx] = [this.rx[qrx], arx];
+				this.patterns[queryRegex].push(anwser);
 			}
 		} else {
-			this.rx[qrx] = arx;
-			this.complied.push(new RegExp(qrx, 'i'));
+			if (typeof anwser == "string")
+				this.patterns[queryRegex] = [anwser];
+			else
+				this.patterns[queryRegex] = anwser;
+			this.complied.push(new RegExp(queryRegex, 'i'));
 		}
 		this.save();
 		return this;
@@ -88,25 +88,21 @@ export class REChatManager {
 	 * 触发并获取回复
 	 * @param txt 测试用例
 	 */
-	getReact(txt: string) {
+	getReact(txt: string): string {
 		let r = this.complied.find(v => !!txt.match(v));
-		let a = null;
-		txt.replace(r, (...ps: any[]) => {
-			if (typeof this.rx[r.source] != "string") {
-				let rdIndex = ~~(Math.random() * this.rx[r.source].length);
-				a = this.rx[r.source][rdIndex].replace(/\$\d/g, v => ps[+v.substr(1)]);
-			} else {
-				a = this.rx[r.source].replace(/\$\d/g, v => ps[+v.substr(1)]);
-			}
+		let anwser: string;
+		txt.replace(r, (...groups: any[]) => {
+			let rdIndex = ~~(Math.random() * this.patterns[r.source].length);
+			anwser = this.patterns[r.source][rdIndex].replace(/\$\d/g, v => groups[+v.substr(1)]);
 			return "";
 		});
-		return a;
+		return anwser;
 	}
 	/**
 	 * 保存数据
 	 */
 	save() {
-		fs.writeFileSync(this.file, JSON.stringify(this.rx), null);
+		fs.writeFileSync(this.file, JSON.stringify(this.patterns), null);
 		return this;
 	}
 }
