@@ -2,10 +2,10 @@ import { EventEmitter } from 'events';
 
 export class LrcParser extends EventEmitter {
 	lrcs: string[];
-	tags = {};
+	tags: { [key: string]: string } = {};
 	playing = false;
 	offset = 500;
-	lines: Map<number, string[]>;
+	lines: { [key: number]: string[] };
 	times: number[];
 	startStamp: number;
 	curLine: number;
@@ -21,18 +21,18 @@ export class LrcParser extends EventEmitter {
 			this.tags[tag] = tn ? tn[1] : '';
 		});
 
-		this.lines = new Map<number, string[]>();
+		this.lines = {};
 
 		let timeExp = /\[(\d{2,})\:(\d{2}(?:\.\d{2,3})?)\]/g;
 
 		// line parse 
 		lrcs.forEach(lrc => lrc.split(/\n+/).filter(v => v.match(timeExp)).forEach(line => {
-			let time;
+			let time: RegExpExecArray;
 			timeExp.lastIndex = 0;
 			while (time = timeExp.exec(line)) {
 				let _last = timeExp.lastIndex;
 				timeExp.lastIndex = 0;
-				let timeTag = time[1] * 6e4 + time[2] * 1e3;
+				let timeTag = +time[1] * 6e4 + +time[2] * 1e3;
 				(this.lines[timeTag] || (this.lines[timeTag] = [])).push(line.replace(timeExp, ''));
 				timeExp.lastIndex = _last;
 			}
@@ -44,7 +44,7 @@ export class LrcParser extends EventEmitter {
 		}
 	}
 
-	findLine(time) {
+	findLine(time = 0) {
 		for (let i = this.times.length - 1; i >= 0; --i) {
 			if (time >= this.times[i]) return i;
 		}
@@ -68,6 +68,10 @@ export class LrcParser extends EventEmitter {
 		next();
 	}
 
+	on(event: string | symbol, listener: (curTime: number, curLine: string[], nxtLine: string[]) => void) {
+		return super.on(event, listener);
+	}
+
 	toggle() {
 		var now = Date.now();
 		if (this.playing) {
@@ -79,7 +83,7 @@ export class LrcParser extends EventEmitter {
 		}
 	}
 
-	seek(offset) {
+	seek(offset = 0) {
 		this.startStamp -= offset;
 		this.playing && this.play(Date.now() - this.startStamp);
 	}

@@ -5,7 +5,7 @@
         "sourceMap": true,
         "outDir": "dist",
         "removeComments": true,
-        "noImplicitAny": false,
+        "noImplicitAny": true,
         "allowJs": true
     },
     "includes": [

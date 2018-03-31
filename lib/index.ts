@@ -26,8 +26,8 @@ export class Command {
 	};
 	name: string;
 	desc: string;
-	alias: Array<string>;
-	fn: Function;
+	alias: string[];
+	fn: (cbody: string, msg: Discord.Message, app: App) => boolean;
 	perm: number;
 	constructor(props: any) {
 		this.name = props.name;
@@ -52,7 +52,7 @@ export class App {
 	client: Discord.Client;
 	commands: Map<string, Command>;
 	actors: ActorArray;
-	filters: Array<IFilter>;
+	filters: IFilter[];
 	alias: UserAliaManager;
 	perm: UserPermissionManager;
 	constructor(props: any) {

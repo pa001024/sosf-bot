@@ -4,6 +4,7 @@ import { CloudMusic, LrcParser } from '../addon';
 import { App } from '..';
 import { IActor } from '.';
 import * as Discord from 'discord.js';
+import { LyricInfo, Song, Lyric } from '../addon/cloudmusic';
 
 /** 声音组件 */
 export class VoiceActor implements IActor {
@@ -13,7 +14,7 @@ export class VoiceActor implements IActor {
 	/** 启用TTS */
 	enableTTS = false;
 	/** 音乐队列 */
-	musicQueue: any[] = [];
+	musicQueue: Song[] = [];
 	session: Discord.StreamDispatcher;
 	/** 总音量 */
 	vol: number;
@@ -74,7 +75,7 @@ export class VoiceActor implements IActor {
 	 * @param name 名称
 	 * @param msg 信息
 	 */
-	async addMusicByName(name, msg) {
+	async addMusicByName(name: string, msg: Discord.Message) {
 		let info = await this.searchMusicInfo(name);
 		if (info.result && info.result.songs[0]) {
 			this.addMusic([info.result.songs[0].id], msg);
@@ -82,8 +83,8 @@ export class VoiceActor implements IActor {
 	}
 	/**
 	 * 添加歌单
-	 * @param {number} id
-	 * @param {Message} msg 
+	 * @param id 
+	 * @param msg 信息
 	 */
 	async addMusicByPlaylist(id: number, msg: Discord.Message) {
 		let info = await this.getPlaylistInfo(id);
@@ -96,7 +97,7 @@ export class VoiceActor implements IActor {
 					title: `💿已添加歌单: ${info.result.name}`,
 					url: `http://music.163.com/playlist?id=${info.result.id}`,
 					color: 0xF92672,
-					description: info.result.tracks.slice(0, 3).map(trank => `${trank.name} - ${trank.artists[0].name}`).join("\n"),
+					description: info.result.tracks.slice(0, 3).map((trank: { name: string, artists: { name: string }[] }) => `${trank.name} - ${trank.artists[0].name}`).join("\n"),
 					thumbnail: {
 						url: info.result.coverImgUrl,
 					},
@@ -113,13 +114,13 @@ export class VoiceActor implements IActor {
 	 * 显示歌词
 	 * @param chan 频道
 	 * @param muInfo 音乐信息
-	 * @param lrc 
+	 * @param lrc 歌词信息
 	 */
-	displayLyric(chan: Discord.TextChannel, muInfo: any, lrc: any) {
+	displayLyric(chan: Discord.TextChannel, muInfo: Song, lrc: LyricInfo) {
 		let slide: Discord.Message, slides: Discord.Message[] = [],
-			cT = (a: number) => `${~~(a / 6e4)}:${~~(a / 1e3 % 60) > 9 ? ~~(a / 1e3 % 60) : "0" + ~~(a / 1e3 % 60)}`, // 时间戳转0:00形式
+			timeToString = (a: number) => `${~~(a / 6e4)}:${~~(a / 1e3 % 60) > 9 ? ~~(a / 1e3 % 60) : "0" + ~~(a / 1e3 % 60)}`, // 时间戳转0:00形式
 			tplHead = `💿 \`${muInfo.name} - ${muInfo.artists[0].name}\` `,
-			tplTime = `\`0:00 / ${cT(muInfo.duration)}\`\n\n`,
+			tplTime = `\`0:00 / ${timeToString(muInfo.duration)}\`\n\n`,
 			addStopReact = (m: Discord.Message) => {
 				m.react('⏹').then(_ => m.react('⏭'));
 				const filter = (reaction: Discord.MessageReaction, user: Discord.User) =>
@@ -144,7 +145,7 @@ export class VoiceActor implements IActor {
 					this.session.on('end', () => {
 						if (slides.length) slide = slides[slides.length - 1];
 						if (slide) {
-							tplTime = `\`${cT(muInfo.duration)} / ${cT(muInfo.duration)}\`\n\n`;
+							tplTime = `\`${timeToString(muInfo.duration)} / ${timeToString(muInfo.duration)}\`\n\n`;
 							slide.edit(tplHead + tplTime + `**- END -**`);
 							slides.forEach(o => o.delete(5e3));
 						}
@@ -153,26 +154,26 @@ export class VoiceActor implements IActor {
 			}, 2e3);
 			return null;
 		}
-		let lrcList = [];
-		["lrc", "tlyric", "klyric"].forEach(v => lrc[v] && lrc[v].lyric && lrcList.push(lrc[v].lyric));
+		let lrcList: string[] = [];
+		["lrc", "tlyric", "klyric"].forEach((v: keyof LyricInfo) => { lrc[v] && (lrc[v] as Lyric).lyric && lrcList.push((lrc[v] as Lyric).lyric); });
 		let player = new LrcParser(lrcList);
-		player.on('start', (time, txts, next) => {
-			if (txts[0] && txts[0].trim() == "") return;
-			tplTime = `\`${cT(time)} / ${cT(muInfo.duration)}\`\n\n`;
-			chan.send(tplHead + tplTime + txts.map(v => `**♪ ${v} ♪**`).join("\n") +
-				(next ? "\n" + next.map(v => `♪ ${v} ♪`).join("\n") : ""))
+		player.on('start', (curTime: number, curLine: string[], nxtLine: string[]) => {
+			if (curLine[0] && curLine[0].trim() == "") return;
+			tplTime = `\`${timeToString(curTime)} / ${timeToString(muInfo.duration)}\`\n\n`;
+			chan.send(tplHead + tplTime + curLine.map(v => `**♪ ${v} ♪**`).join("\n") +
+				(nxtLine ? "\n" + nxtLine.map(v => `♪ ${v} ♪`).join("\n") : ""))
 				.then(m => { if (m instanceof Discord.Message) { slides.push(m); addStopReact(m); } });
 		});
-		player.on('update', (time, txts, next) => {
-			if (txts[0] && txts[0].trim() == "") return;
-			tplTime = `\`${cT(time)} / ${cT(muInfo.duration)}\`\n\n`;
+		player.on('update', (curTime: number, curLine: string[], nxtLine: string[]) => {
+			if (curLine[0] && curLine[0].trim() == "") return;
+			tplTime = `\`${timeToString(curTime)} / ${timeToString(muInfo.duration)}\`\n\n`;
 			if (slides.length) slide = slides[slides.length - 1];
 			if (slide) {
-				slide.edit(tplHead + tplTime + txts.map(v => `**♪ ${v} ♪**`).join("\n") +
-					(next ? "\n" + next.map(v => `♪ ${v} ♪`).join("\n") : ""));
-			} else if (time > 2e3) {
-				chan.send(tplHead + tplTime + txts.map(v => `**♪ ${v} ♪**`).join("\n") +
-					(next ? "\n" + next.map(v => `♪ ${v} ♪`).join("\n") : ""))
+				slide.edit(tplHead + tplTime + curLine.map(v => `**♪ ${v} ♪**`).join("\n") +
+					(nxtLine ? "\n" + nxtLine.map(v => `♪ ${v} ♪`).join("\n") : ""));
+			} else if (curTime > 2e3) {
+				chan.send(tplHead + tplTime + curLine.map(v => `**♪ ${v} ♪**`).join("\n") +
+					(nxtLine ? "\n" + nxtLine.map(v => `♪ ${v} ♪`).join("\n") : ""))
 					.then(m => { if (m instanceof Discord.Message) { slides.push(m); addStopReact(m); } });
 			}
 		});
@@ -197,23 +198,23 @@ export class VoiceActor implements IActor {
 		}
 	}
 
-	private searchMusicInfo(name: string): Promise<any> {
+	private searchMusicInfo(name: string) {
 		return CloudMusic.search(name);
 	}
 
-	private getPlaylistInfo(id: number): Promise<any> {
+	private getPlaylistInfo(id: number) {
 		return CloudMusic.getPlaylistInfo(id);
 	}
 
-	private getMusicInfo(musicIDs: number[]): Promise<any> {
+	private getMusicInfo(musicIDs: number[]) {
 		return CloudMusic.getInfo(musicIDs);
 	}
 
-	private getMusicURL(id: number): Promise<any> {
+	private getMusicURL(id: number) {
 		return CloudMusic.getDownload(id);
 	}
 
-	private getLyric(id: number): Promise<any> {
+	private getLyric(id: number) {
 		return CloudMusic.getLyric(id);
 	}
 
@@ -247,7 +248,7 @@ export class VoiceActor implements IActor {
 			let rst = await this.getMusicURL(this.musicQueue[0].id);
 			if (!(rst.data && rst.data.url)) {
 				this.app.log.warn(`[MUS] Failed to load mp3url for ${this.musicQueue[0].id}:\n`);
-				this.app.log.warn(rst);
+				this.app.log.warn(rst + "");
 				this.musicQueue = this.musicQueue.slice(1);
 				this.playNext();
 				return;

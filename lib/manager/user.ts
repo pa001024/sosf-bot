@@ -15,6 +15,9 @@ export class UserAliaManager {
 	getAlia(user: Discord.User | Discord.GuildMember, guild: Discord.Guild, ): string {
 		return this.alias[`${guild.id}|${user.id}`] || (user instanceof Discord.GuildMember && (user.displayName || user.user.username));
 	}
+	/**
+	 * 储存更改
+	 */
 	save() {
 		fs.writeFileSync(this.file, JSON.stringify(this.alias), null);
 	}
@@ -27,13 +30,25 @@ export class UserPermissionManager {
 		this.file = file;
 		this.perm = require(this.file);
 	}
+	/**
+	 * 设置权限
+	 * @param user 用户
+	 * @param perm 权限
+	 */
 	setPermission(user: Discord.User, perm: number) {
 		this.perm[user.id + ""] = perm;
 		this.save();
 	}
-	getPermission(user): number {
+	/**
+	 * 获取权限
+	 * @param user 用户
+	 */
+	getPermission(user: Discord.User): number {
 		return this.perm[user.id + ""] || 0;
 	}
+	/**
+	 * 储存更改
+	 */
 	save() {
 		fs.writeFileSync(this.file, JSON.stringify(this.perm), null);
 	}
