@@ -46,28 +46,48 @@ export class Command {
 	}
 }
 
+export interface Prefix {
+	main: string;
+	tts: string;
+	cmd: string;
+	chat: string[];
+}
+
+export interface AppConfig {
+	name: string;
+	clientId: string;
+	token: string;
+	activityType: Discord.ActivityType | number;
+	activityName: string;
+	prefix: Prefix;
+	replyRate: number;
+	deleteOriginCommandDelay: number;
+	deleteReplyDelay: number;
+	chat_api: string;
+}
+
 export class App {
 	log: log4js.Logger;
-	config: any;
+	config: AppConfig;
 	client: Discord.Client;
 	commands: Map<string, Command>;
 	actors: Map<string, IActor>;
 	filters: IFilter[];
 	alias: UserAliaManager;
 	perm: UserPermissionManager;
-	constructor(props: any) {
-		this.config = props.config;
-		this.client = props.client;
+	constructor(config: AppConfig, client: Discord.Client, aliasFile: string, permFile: string, rxFile: string) {
+		this.config = config;
+		this.client = client;
 		this.commands = new Map();
 		this.actors = new Map();
 		this.log = log4js.getLogger("app");
-		this.filters = [new PreFilter(props.prefix.main, this)];
-		this.alias = new UserAliaManager(path.resolve(props.aliasFile));
-		this.perm = new UserPermissionManager(path.resolve(props.permFile));
-		this.actors.set("cmd", new CommandActor(props.prefix.cmd, this));
-		this.actors.set("re", new REChatActor(props.prefix.chat, this, path.resolve(props.rxFile)));
-		this.actors.set("voice", new VoiceActor(props.prefix.tts, this));
-		this.actors.set("ai", new AIChatActor(props.prefix.chat, this, this.config.chat_api));
+		this.filters = [new PreFilter(config.prefix.main, this)];
+		this.alias = new UserAliaManager(path.resolve(aliasFile));
+		this.perm = new UserPermissionManager(path.resolve(permFile));
+		this.actors.set("cmd", new CommandActor(config.prefix.cmd, this));
+		this.actors.set("re", new REChatActor(config.prefix.chat, this, path.resolve(rxFile)));
+		this.actors.set("voice", new VoiceActor(config.prefix.tts, this));
+		this.actors.set("ai", new AIChatActor(config.prefix.chat, this, this.config.chat_api));
 	}
 	/**
 	 * 查询信息的称呼
@@ -121,16 +141,13 @@ export class App {
 	}
 }
 
-let app = new App({
-	name: cfg.name,
-	config: cfg,
-	client: bot,
-	prefix: cfg.prefix,
-	replyRate: cfg.replyRate,
-	permFile: "config/permission.json",
-	aliasFile: "config/alias.json",
-	rxFile: "config/chat.json",
-});
+let app = new App(
+	/*config:*/ cfg,
+	/*client:*/ bot,
+	/*permFile:*/ "config/permission.json",
+	/*aliasFile:*/ "config/alias.json",
+	/*rxFile:*/ "config/chat.json",
+);
 
 app.reloadCommand();
 

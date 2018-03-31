@@ -105,6 +105,17 @@ export class VoiceActor implements IActor {
 						text: `等${info.result.tracks.length}首音乐`
 					}
 				}
+			}).then(m => {
+				if (m instanceof Discord.Message) {
+					m.react('❌');
+					const filter = (reaction: Discord.MessageReaction, user: Discord.User) =>
+						(reaction.emoji.name === '❌') && user.id !== this.app.client.user.id;
+					const col = m.createReactionCollector(filter);
+					col.on('collect', reaction => {
+						col.stop();
+						m.delete();
+					});
+				}
 			});
 			if (!this.session) this.play(msg);
 		}
