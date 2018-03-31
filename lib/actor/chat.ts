@@ -16,7 +16,7 @@ export class REChatActor implements IActor {
 		this.rx = new REChatManager(rxFile);
 	}
 
-	reciveMessage(msg: Discord.Message): boolean {
+	async reciveMessage(msg: Discord.Message): Promise<boolean> {
 		let prefix = this.prefixs.find(v => msg.content.startsWith(v));
 		if (prefix || Math.random() <= this.app.config.replyRate) {
 			let Q = msg.content.substr(prefix ? prefix.length : 0).replace(/^[\s\.,，　]+/, '');
@@ -41,7 +41,7 @@ export class QA {
 }
 
 /** 聊天处理2 */
-export class AIChatActor {
+export class AIChatActor implements IActor  {
 	prefixs: Array<string>;
 	app: App;
 	api: string;
@@ -63,7 +63,7 @@ export class AIChatActor {
 		});
 	}
 
-	async act(msg: Discord.Message): Promise<boolean> {
+	async reciveMessage(msg: Discord.Message): Promise<boolean> {
 		let prefix = this.prefixs.find(v => msg.content.startsWith(v));
 		if (prefix || Math.random() <= this.app.config.replyRate) {
 			let L = new QA(msg.content.substr(prefix ? prefix.length : 0).replace(/^[\s\.,　]+/, ''));

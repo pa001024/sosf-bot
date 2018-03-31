@@ -4,7 +4,7 @@ import * as Discord from 'discord.js';
 import * as log4js from 'log4js';
 
 import { IFilter, PreFilter } from "./filter";
-import { IActor, ActorArray, CommandActor, VoiceActor, REChatActor, AIChatActor } from "./actor";
+import { IActor, CommandActor, VoiceActor, REChatActor, AIChatActor } from "./actor";
 import { UserAliaManager, UserPermissionManager } from "./manager";
 
 log4js.configure({
@@ -51,23 +51,23 @@ export class App {
 	config: any;
 	client: Discord.Client;
 	commands: Map<string, Command>;
-	actors: ActorArray;
+	actors: Map<string, IActor>;
 	filters: IFilter[];
 	alias: UserAliaManager;
 	perm: UserPermissionManager;
 	constructor(props: any) {
 		this.config = props.config;
 		this.client = props.client;
-		this.commands = new Map<string, Command>();
-		this.actors = new ActorArray();
+		this.commands = new Map();
+		this.actors = new Map();
 		this.log = log4js.getLogger("app");
 		this.filters = [new PreFilter(props.prefix.main, this)];
 		this.alias = new UserAliaManager(path.resolve(props.aliasFile));
 		this.perm = new UserPermissionManager(path.resolve(props.permFile));
-		this.actors.add("cmd", new CommandActor(props.prefix.cmd, this));
-		this.actors.add("re", new REChatActor(props.prefix.chat, this, path.resolve(props.rxFile)));
-		this.actors.add("voice", new VoiceActor(props.prefix.tts, this));
-		this.actors.add("ai", new AIChatActor(props.prefix.chat, this, this.config.chat_api));
+		this.actors.set("cmd", new CommandActor(props.prefix.cmd, this));
+		this.actors.set("re", new REChatActor(props.prefix.chat, this, path.resolve(props.rxFile)));
+		this.actors.set("voice", new VoiceActor(props.prefix.tts, this));
+		this.actors.set("ai", new AIChatActor(props.prefix.chat, this, this.config.chat_api));
 	}
 	/**
 	 * 查询信息的称呼
@@ -83,9 +83,19 @@ export class App {
 			bot.user.setActivity(this.config.activityName, { type: this.config.activityType || "PLAYING" });
 		}
 	}
-	recive(msg: Discord.Message) {
+	reciveMessage(msg: Discord.Message) {
 		if (this.filters.every(a => a.checkMessage(msg))) {
-			this.actors.array().some(a => this.actors.get(a).reciveMessage(msg));
+			let keys = this.actors.values(),
+				actor: IteratorResult<IActor>,
+				itor = () => {
+					if (!(actor = keys.next()).done)
+						actor.value.reciveMessage(msg).then(result => {
+							if (!result) {
+								itor();
+							}
+						});
+				}
+			itor();
 		}
 	}
 	addCommand(cmd: Command) {
@@ -102,7 +112,7 @@ export class App {
 		});
 	}
 	logout() {
-		app.actors.get("voice").stop();
+		(app.actors.get("voice") as VoiceActor).stop();
 		setTimeout(() => {
 			this.log.info("[App] Bot shutdown");
 			bot.destroy();
@@ -125,7 +135,7 @@ let app = new App({
 app.reloadCommand();
 
 bot.on('ready', () => app.online());
-bot.on('message', msg => app.recive(msg));
+bot.on('message', msg => app.reciveMessage(msg));
 bot.login(cfg.token).then(() => {
 	app.log.info('[App] Bot start');
 });

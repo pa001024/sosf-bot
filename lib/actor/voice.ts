@@ -369,7 +369,8 @@ export class VoiceActor implements IActor {
 		let api = api_base + encodeURI(content);
 		this.playURL(api);
 	}
-	reciveMessage(msg: Discord.Message) {
+	
+	async reciveMessage(msg: Discord.Message): Promise<boolean> {
 		if (!this.enableTTS || !this.voiceconn || msg.tts || !msg.guild || msg.guild.id != this.voiceconn.channel.guild.id) return false;
 		if (msg.content.startsWith(this.prefix)) {
 			let txt = msg.content.substr(this.prefix.length);

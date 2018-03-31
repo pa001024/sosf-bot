@@ -11,7 +11,7 @@ export class CommandActor implements IActor {
 		this.app = app;
 	}
 
-	reciveMessage(msg: Discord.Message): boolean {
+	async reciveMessage(msg: Discord.Message): Promise<boolean> {
 		if (msg.content.startsWith(this.prefix)) {
 			let txt = msg.content.substr(this.prefix.length);
 			let chead = txt.split(" ")[0];
