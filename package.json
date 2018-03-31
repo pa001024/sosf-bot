@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "bot": "node ./lib/index.js",
-    "complie": "gulp"
+    "prepublish": "gulp"
   },
   "license": "MIT",
   "devDependencies": {

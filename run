@@ -2,5 +2,5 @@
 
 while [ true ]
 do
-    babel-node ./lib/index.js
+    ts-node ./lib/index.ts
 done
