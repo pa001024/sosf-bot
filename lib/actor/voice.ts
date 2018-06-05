@@ -5,38 +5,38 @@ import { App } from '..';
 import { IActor } from '.';
 import * as Discord from 'discord.js';
 import { LyricInfo, Song, Lyric } from '../addon/cloudmusic';
+import { LyricManager, BaiduTTSManager } from '../manager';
 
 /** 声音组件 */
 export class VoiceActor implements IActor {
 	prefix: string;
 	app: App;
 	voiceconn: Discord.VoiceConnection;
-	/** 启用TTS */
-	enableTTS = false;
+	session: Discord.StreamDispatcher;
 	/** 音乐队列 */
 	musicQueue: Song[] = [];
-	session: Discord.StreamDispatcher;
 	/** 总音量 */
 	vol: number;
-	/** 启用歌词 */
-	enableLyric = true;
 	playChannel: Discord.TextChannel;
-	/** 发音人选择, 0为女声，1为男声，3为情感合成-度逍遥，4为情感合成-度丫丫，默认为普通女声 */
-	ttsPerson = 0;
-	/** 速度 */
-	ttsSpeed = 7;
-	/** 语调 */
-	ttsPitch = 5;
-	/** 大小 */
-	ttsVol = 5;
+
+	/** TTS */
+	enableTTS = false;
+	ttsManager = new BaiduTTSManager();
+
+	/** 歌词 */
+	enableLyric = true;
+	lyricDisplay = new LyricManager();
+
 	/**
 	 * 创建声音组件
-	 * @param {object} props 参数对象
+	 * @param prefix 指令前缀
+	 * @param app
+	 * @param vol
 	 */
 	constructor(prefix: string, app: App, vol: number = 1) {
 		this.prefix = prefix;
 		this.app = app;
-		this.vol = vol || 0.5; // 总音量
+		this.vol = vol;
 	}
 
 	/**
@@ -44,10 +44,10 @@ export class VoiceActor implements IActor {
 	 * @param mid 音乐id
 	 * @param msg 信息
 	 */
-	async addMusic(mid: string | number | Array<number>, msg: Discord.Message) {
-		let musicIDs: Array<number>;
+	async addMusic(mid: string | number | number[], msg: Discord.Message) {
+		let musicIDs: number[];
 		if (typeof mid == "string") {
-			musicIDs = new Array<number>();
+			musicIDs = [];
 			mid.split(",").forEach(v => +v > 0 && musicIDs.push(+v));
 		} else if (typeof mid == "number") {
 			musicIDs = [mid];
@@ -81,9 +81,10 @@ export class VoiceActor implements IActor {
 			this.addMusic([info.result.songs[0].id], msg);
 		}
 	}
+
 	/**
 	 * 添加歌单
-	 * @param id 
+	 * @param id
 	 * @param msg 信息
 	 */
 	async addMusicByPlaylist(id: number, msg: Discord.Message) {
@@ -122,11 +123,98 @@ export class VoiceActor implements IActor {
 	}
 
 	/**
-	 * 显示歌词
-	 * @param chan 频道
-	 * @param muInfo 音乐信息
-	 * @param lrc 歌词信息
+	 * 设置音量
+	 * @param volume 音量大小 0-1
 	 */
+	setVol(volume: number) {
+		this.vol = volume;
+		if (this.session) {
+			this.session.setVolume(this.vol);
+		}
+	}
+
+	private searchMusicInfo(name: string) {
+		return CloudMusic.search(name);
+	}
+
+	private getPlaylistInfo(id: number) {
+		return CloudMusic.getPlaylistInfo(id);
+	}
+
+	private getMusicInfo(musicIDs: number[]) {
+		return CloudMusic.getInfo(musicIDs);
+	}
+
+	private getMusicURL(id: number) {
+		return CloudMusic.getURL([id]);
+	}
+
+	private getLyric(id: number) {
+		return CloudMusic.getLyric(id);
+	}
+
+	/**
+	 * 开始播放
+	 * @param msg 信息
+	 */
+	play(msg: Discord.Message) {
+		if (this.playChannel == null || this.playChannel.id != msg.channel.id) {
+			if (msg.channel instanceof Discord.TextChannel)
+				this.playChannel = msg.channel;
+			this.stop();
+			this.leave();
+			msg.member && msg.member.voiceChannel && this.join(msg.member.voiceChannel)
+				.then(c => this.playNext());
+		} else {
+			if (this.session) {
+				this.session.paused && this.session.resume();
+			} else {
+				this.playNext();
+			}
+		}
+	}
+
+	/** 播放下一首音乐 */
+	async playNext() {
+		if (!this.voiceconn) return;
+		this.stop();
+		if (!this.musicQueue.length) {
+			this.app.log.info(`[MUS] musicQueue length is 0`);
+			return;
+		}
+		let lrcPlayer: LrcParser;
+		try {
+			let rst = await this.getMusicURL(this.musicQueue[0].id);
+			if (!(rst.data && rst.data[0] && rst.data[0].url)) {
+				this.app.log.warn(`[MUS] Failed to load mp3url for ${this.musicQueue[0].id}:\n`);
+				this.app.log.warn(rst as any);
+				this.musicQueue = this.musicQueue.slice(1);
+				this.playNext();
+				return;
+			}
+			if (this.enableLyric && this.playChannel) {
+				let lrc = await this.getLyric(this.musicQueue[0].id);
+				lrcPlayer = this.displayLyric(this.playChannel, this.musicQueue[0], lrc);
+				this.app.log.info(`[LRC] Set offset: ${~~this.app.client.ping}ms`);
+				if (lrcPlayer) lrcPlayer.offset = ~~this.app.client.ping;
+			}
+			let reason = await this.playURL(rst.data[0].url, () => {
+				lrcPlayer && lrcPlayer.play();
+			});
+			if (this.musicQueue.length) {
+				this.musicQueue = this.musicQueue.slice(1);
+				if (reason != "cmd") {
+					this.playNext();
+				} else {
+					if (lrcPlayer) lrcPlayer.stop();
+				}
+			}
+		} catch (e) {
+			if (lrcPlayer) lrcPlayer.stop();
+			this.app.log.error(e as any);
+		}
+	}
+
 	displayLyric(chan: Discord.TextChannel, muInfo: Song, lrc: LyricInfo) {
 		let slide: Discord.Message, slides: Discord.Message[] = [],
 			timeToString = (a: number) => `${~~(a / 6e4)}:${~~(a / 1e3 % 60) > 9 ? ~~(a / 1e3 % 60) : "0" + ~~(a / 1e3 % 60)}`, // 时间戳转0:00形式
@@ -199,99 +287,6 @@ export class VoiceActor implements IActor {
 	}
 
 	/**
-	 * 设置音量
-	 * @param volume 音量大小 0-1
-	 */
-	setVol(volume: number) {
-		this.vol = volume;
-		if (this.session) {
-			this.session.setVolume(this.vol);
-		}
-	}
-
-	private searchMusicInfo(name: string) {
-		return CloudMusic.search(name);
-	}
-
-	private getPlaylistInfo(id: number) {
-		return CloudMusic.getPlaylistInfo(id);
-	}
-
-	private getMusicInfo(musicIDs: number[]) {
-		return CloudMusic.getInfo(musicIDs);
-	}
-
-	private getMusicURL(id: number) {
-		return CloudMusic.getDownload(id);
-	}
-
-	private getLyric(id: number) {
-		return CloudMusic.getLyric(id);
-	}
-
-	/**
-	 * 开始播放
-	 * @param msg 信息
-	 */
-	play(msg: Discord.Message) {
-		if (this.playChannel == null || this.playChannel.id != msg.channel.id) {
-			if (msg.channel instanceof Discord.TextChannel)
-				this.playChannel = msg.channel;
-			this.stop();
-			this.leave();
-			msg.member && msg.member.voiceChannel && this.join(msg.member.voiceChannel)
-				.then(c => this.playNext());
-		} else {
-			if (this.session) {
-				this.session.paused && this.session.resume();
-			} else {
-				this.playNext();
-			}
-		}
-	}
-
-	/** 播放下一首音乐 */
-	async playNext() {
-		if (!this.voiceconn) return;
-		this.stop();
-		if (!this.musicQueue.length) {
-			this.app.log.info(`[MUS] musicQueue length is 0`);
-			return;
-		}
-		let lrcPlayer: LrcParser;
-		try {
-			let rst = await this.getMusicURL(this.musicQueue[0].id);
-			if (!(rst.data && rst.data.url)) {
-				this.app.log.warn(`[MUS] Failed to load mp3url for ${this.musicQueue[0].id}:\n`);
-				this.app.log.warn(rst + "");
-				this.musicQueue = this.musicQueue.slice(1);
-				this.playNext();
-				return;
-			}
-			if (this.enableLyric && this.playChannel) {
-				let lrc = await this.getLyric(this.musicQueue[0].id);
-				lrcPlayer = this.displayLyric(this.playChannel, this.musicQueue[0], lrc);
-				this.app.log.info(`[LRC] Set offset: ${~~this.app.client.ping}ms`);
-				if (lrcPlayer) lrcPlayer.offset = ~~this.app.client.ping;
-			}
-			let reason = await this.playURL(rst.data.url, () => {
-				lrcPlayer && lrcPlayer.play();
-			});
-			if (this.musicQueue.length) {
-				this.musicQueue = this.musicQueue.slice(1);
-				if (reason != "cmd") {
-					this.playNext();
-				} else {
-					if (lrcPlayer) lrcPlayer.stop();
-				}
-			}
-		} catch (e) {
-			if (lrcPlayer) lrcPlayer.stop();
-			this.app.log.error(e as any);
-		}
-	}
-
-	/**
 	 * 播放URL
 	 * @param url 音乐地址
 	 * @param callback 回调函数
@@ -299,26 +294,40 @@ export class VoiceActor implements IActor {
 	playURL(url: string, callback?: Function) {
 		return new Promise<any>((resolve, reject) => {
 			if (!this.voiceconn) return reject("未连接到语音频道");
-			try {
-				let ffProcess = ChildProcess.spawn("ffmpeg", "-analyzeduration 0 -loglevel 0 -i - -f s16le -ar 48000 -ac 2 -ss 0 pipe:1".split(" "), {
-					stdio: ['pipe', 'pipe', 'ignore']
+			this.session = this.voiceconn.playArbitraryInput(url);
+			if (this.session) {
+				this.session.setVolume(this.vol);
+				this.session.on("start", () => {
+					callback && callback();
 				});
-				request(url).pipe(ffProcess.stdin).on('error', (err: any) => this.app.log.error(err));
-				this.session = this.voiceconn.playConvertedStream(ffProcess.stdout);
+				this.session.on("end", reason => {
+					this.session = null;
+					resolve(reason);
+					this.app.log.debug(`[VOC] url ${url} session ended`);
+				}).on("error", e => reject(e));
+			}
+		});
+	}
 
-				if (this.session) {
-					this.session.setVolume(this.vol);
-					this.session.on("start", () => {
-						callback && callback();
-					});
-					this.session.on("end", reason => {
-						this.session = null;
-						resolve(reason);
-						this.app.log.debug(`[VOC] url ${url} session ended`);
-					}).on("error", e => reject(e));
-				}
-			} catch (e) {
-				reject(e);
+	/**
+	 * 播放文件
+	 * @param fileName 文件名
+	 * @param callback
+	 */
+	playFile(fileName: string, callback?: Function) {
+		return new Promise((resolve, reject) => {
+			if (!this.voiceconn) return reject("未连接到语音频道");
+			this.session = this.voiceconn.playFile(fileName);
+			if (this.session) {
+				this.session.setVolume(this.vol);
+				this.session.on("start", () => {
+					callback && callback();
+				});
+				this.session.on("end", reason => {
+					this.session = null;
+					resolve(reason);
+					this.app.log.debug(`[VOC] file ${fileName} session ended`);
+				}).on("error", e => reject(e));
 			}
 		});
 	}
@@ -379,9 +388,8 @@ export class VoiceActor implements IActor {
 
 	playTTS(content: string) {
 		if (this.session) return;
-		const api_base = `http://tts.baidu.com/text2audio?per=${this.ttsPerson}&idx=1&cuid=baidu_speech_demo&cod=2&lan=zh&ctp=1&pdt=1&spd=${this.ttsSpeed}&vol=${this.ttsVol}&pit=${this.ttsPitch}&tex=`;
 
-		let api = api_base + encodeURI(content);
+		let api = this.ttsManager.text2Speech(content);
 		this.playURL(api);
 	}
 

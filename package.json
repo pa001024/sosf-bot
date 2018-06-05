@@ -2,7 +2,7 @@
   "name": "sosf-bot",
   "version": "1.0.0",
   "description": "",
-  "homepage": "0-0.at",
+  "homepage": "http://0-0.at",
   "author": "",
   "files": [
     "lib"
@@ -20,6 +20,7 @@
     "@types/log4js": "^2.3.5",
     "@types/node": "^9.6.1",
     "@types/request": "^2.47.0",
+    "@types/vinyl": "^2.0.2",
     "gulp": "^3.9.0",
     "gulp-nodemon": "^2.2.1",
     "gulp-sourcemaps": "^2.6.4",

@@ -20,12 +20,10 @@ gulp.task('watch', ['compile'], function () {
         watch: 'lib',    // 源代码目录
         tasks: ['compile'], // 在重启服务前需要执行的任务
         ext: 'ts', // 监听.ts结尾的文件 必须
-        // 设置环境
         env: {
             'NODE_ENV': 'development'
         },
-        // 必须开启debug模式
-        exec: 'node --debug'
+        exec: 'node --inspect'
     });
 });
 
