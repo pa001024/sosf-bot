@@ -165,6 +165,5 @@ bot.on('disconnect', () => {
 	}, 3e3);
 })
 
-process.on('uncaughtException', (err) => {
-	app.log.error("[DANGER] syserr", err as any);
-});
+bot.on('error', err => app.log.error("[DANGER] boterr", err as any));
+process.on('uncaughtException', err => app.log.error("[DANGER] syserr", err as any));
